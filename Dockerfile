@@ -42,3 +42,5 @@ CMD ["npx", "concurrently", "-k", "-p", "[{name}]", \
   "PORT=8009 node services/notification-service/index.js", \
   "PORT=8010 node services/socket-service/index.js" \
 ]
+# Run all 10 microservices via dedicated Node launcher
+CMD ["node", "start-all.js"]
