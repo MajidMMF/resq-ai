@@ -5,19 +5,21 @@ WORKDIR /app
 # Copy backend files
 COPY . .
 
-# Install all service dependencies
-RUN npm install && \
-    npm install -g concurrently && \
-    cd gateway && npm install --omit=dev && cd .. && \
-    cd services/auth && npm install --omit=dev && cd .. && \
-    cd services/emergency && npm install --omit=dev && cd .. && \
-    cd services/incident-service && npm install --omit=dev && cd .. && \
-    cd services/agent && npm install --omit=dev && cd .. && \
-    cd services/ambulance-service && npm install --omit=dev && cd .. && \
-    cd services/hospital-service && npm install --omit=dev && cd .. && \
-    cd services/location-service && npm install --omit=dev && cd .. && \
-    cd services/notification-service && npm install --omit=dev && cd .. && \
-    cd services/socket-service && npm install --omit=dev && cd ..
+# Install concurrently globally
+RUN npm install -g concurrently
+
+# Install dependencies using --prefix to avoid path issues
+RUN npm install --omit=dev && \
+    npm --prefix gateway install --omit=dev && \
+    npm --prefix services/auth install --omit=dev && \
+    npm --prefix services/emergency install --omit=dev && \
+    npm --prefix services/incident-service install --omit=dev && \
+    npm --prefix services/agent install --omit=dev && \
+    npm --prefix services/ambulance-service install --omit=dev && \
+    npm --prefix services/hospital-service install --omit=dev && \
+    npm --prefix services/location-service install --omit=dev && \
+    npm --prefix services/notification-service install --omit=dev && \
+    npm --prefix services/socket-service install --omit=dev
 
 # Expose Gateway port
 ENV PORT=8000
