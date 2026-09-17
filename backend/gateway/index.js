@@ -22,7 +22,7 @@ const mountService = (path, target, preservePath = false) => {
    app.use(path, proxy(target, {
       limit: "50mb",
       userResHeaderDecorator(headers, userReq, userRes, proxyReq, proxyRes) {
-         headers["access-control-allow-origin"] = process.env.FRONTEND_URL || "http://localhost:5173";
+         headers["access-control-allow-origin"] = userReq.headers.origin || process.env.FRONTEND_URL || "*";
          headers["access-control-allow-credentials"] = "true";
          return headers;
       },
@@ -70,7 +70,7 @@ const mountService = (path, target, preservePath = false) => {
 }
 
 app.use(cors({
-   origin: process.env.FRONTEND_URL,
+   origin: (origin, callback) => callback(null, true),
    credentials: true
 }))
 app.use(morgan("dev"))

@@ -46,7 +46,7 @@ export const setSessionCookie = (res, sessionId) => {
   res.cookie(env.SESSION_COOKIE_NAME, sessionId, {
     httpOnly: true,
     secure: env.IS_PRODUCTION,
-    sameSite: "lax",
+    sameSite: env.IS_PRODUCTION ? "none" : "lax",
     maxAge: env.SESSION_TTL * 1000,
     path: "/",
   });
@@ -77,6 +77,6 @@ export const destroySession = async (sessionId) => {
 export const getCookieOptions = () => ({
   httpOnly: true,
   secure: env.IS_PRODUCTION,
-  sameSite: "lax",
+  sameSite: env.IS_PRODUCTION ? "none" : "lax",
   path: "/",
 });
