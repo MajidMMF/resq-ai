@@ -86,6 +86,7 @@ mountService("/api/ambulances", process.env.AMBULANCE_SERVICE)
 mountService("/api/locations", process.env.LOCATION_SERVICE)
 mountService("/api/hospitals", process.env.HOSPITAL_SERVICE)
 mountService("/api/notifications", process.env.NOTIFICATION_SERVICE)
+mountService("/socket.io", process.env.SOCKET_SERVICE || "http://localhost:8010", true)
 
 app.get("/api/me", protect, getCurrentUser);
 
