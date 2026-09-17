@@ -23,22 +23,22 @@ RUN npm install --omit=dev && \
     npm --prefix services/notification-service install --omit=dev && \
     npm --prefix services/socket-service install --omit=dev
 
-# Expose Gateway port
+# Railway exposes port 8000 for public Gateway
 ENV PORT=8000
 EXPOSE 8000
 
-# Run all 10 microservices concurrently
+# Run all 10 microservices on their distinct ports
 CMD ["npx", "concurrently", "-k", "-p", "[{name}]", \
   "-n", "GATEWAY,AUTH,EMERG,INCIDENT,AGENT,AMBULANCE,HOSPITAL,LOCATION,NOTIFY,SOCKET", \
   "-c", "cyan,blue,red,yellow,magenta,green,white,gray,pink,brightBlue", \
-  "node gateway/index.js", \
-  "node services/auth/index.js", \
-  "node services/emergency/index.js", \
-  "node services/incident-service/index.js", \
-  "node services/agent/index.js", \
-  "node services/ambulance-service/index.js", \
-  "node services/hospital-service/index.js", \
-  "node services/location-service/index.js", \
-  "node services/notification-service/index.js", \
-  "node services/socket-service/index.js" \
+  "PORT=8000 node gateway/index.js", \
+  "PORT=8001 node services/auth/index.js", \
+  "PORT=8002 node services/emergency/index.js", \
+  "PORT=8003 node services/incident-service/index.js", \
+  "PORT=8004 node services/agent/index.js", \
+  "PORT=8007 node services/ambulance-service/index.js", \
+  "PORT=8006 node services/hospital-service/index.js", \
+  "PORT=8005 node services/location-service/index.js", \
+  "PORT=8009 node services/notification-service/index.js", \
+  "PORT=8010 node services/socket-service/index.js" \
 ]
