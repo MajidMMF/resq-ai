@@ -1,0 +1,25 @@
+{
+  "name": "resq-ai-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "redis:up": "docker compose up -d",
+    "dev:gateway": "cd gateway && npm run dev",
+    "dev:auth": "cd services/auth && npm run dev",
+    "dev:emergency": "cd services/emergency && npm run dev",
+    "dev:incident": "cd services/incident-service && npm run dev",
+    "dev:agent": "cd services/agent && npm run dev",
+    "dev:ambulance": "cd services/ambulance-service && npm run dev",
+    "dev:hospital": "cd services/hospital-service && npm run dev",
+    "dev:location": "cd services/location-service && npm run dev",
+    "dev:notification": "cd services/notification-service && npm run dev",
+    "dev:socket": "cd services/socket-service && npm run dev",
+    "dev": "docker compose up -d && concurrently -k -p \"[{name}]\" -n \"GATEWAY,AUTH,EMERG,INCIDENT,AGENT,AMBULANCE,HOSPITAL,LOCATION,NOTIFY,SOCKET\" -c \"cyan,blue,red,yellow,magenta,green,white,gray,pink,brightBlue\" \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:emergency\" \"npm run dev:incident\" \"npm run dev:agent\" \"npm run dev:ambulance\" \"npm run dev:hospital\" \"npm run dev:location\" \"npm run dev:notification\" \"npm run dev:socket\""
+  },
+  "dependencies": {
+    "ioredis": "^6.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}

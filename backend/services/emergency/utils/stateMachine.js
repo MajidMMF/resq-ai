@@ -1,0 +1,87 @@
+import { EMERGENCY_STATES, TERMINAL_EMERGENCY_STATES } from "../../../shared/constants/emergencyStates.js";
+import { ROLES } from "../../../shared/constants/roles.js";
+
+const allowedTransitions = Object.freeze({
+  [EMERGENCY_STATES.USER_REQUESTED]: [
+    EMERGENCY_STATES.HOSPITAL_SELECTED,
+    EMERGENCY_STATES.CANCELLED,
+  ],
+  [EMERGENCY_STATES.HOSPITAL_SELECTED]: [
+    EMERGENCY_STATES.AMBULANCE_ASSIGNED,
+    EMERGENCY_STATES.CANCELLED,
+  ],
+  [EMERGENCY_STATES.AMBULANCE_ASSIGNED]: [
+    EMERGENCY_STATES.AMBULANCE_ACCEPTED,
+    EMERGENCY_STATES.CANCELLED,
+  ],
+  [EMERGENCY_STATES.AMBULANCE_ACCEPTED]: [
+    EMERGENCY_STATES.AMBULANCE_EN_ROUTE_TO_USER,
+    EMERGENCY_STATES.CANCELLED,
+  ],
+  [EMERGENCY_STATES.AMBULANCE_EN_ROUTE_TO_USER]: [
+    EMERGENCY_STATES.AMBULANCE_ARRIVED,
+    EMERGENCY_STATES.CANCELLED,
+  ],
+  [EMERGENCY_STATES.AMBULANCE_ARRIVED]: [
+    EMERGENCY_STATES.OTP_VERIFIED,
+    EMERGENCY_STATES.CANCELLED,
+  ],
+  [EMERGENCY_STATES.OTP_VERIFIED]: [
+    EMERGENCY_STATES.PATIENT_PICKED_UP,
+    EMERGENCY_STATES.CANCELLED,
+  ],
+  [EMERGENCY_STATES.PATIENT_PICKED_UP]: [
+    EMERGENCY_STATES.EN_ROUTE_TO_HOSPITAL,
+    EMERGENCY_STATES.CANCELLED,
+  ],
+  [EMERGENCY_STATES.EN_ROUTE_TO_HOSPITAL]: [
+    EMERGENCY_STATES.ARRIVED_AT_HOSPITAL,
+    EMERGENCY_STATES.CANCELLED,
+  ],
+  [EMERGENCY_STATES.ARRIVED_AT_HOSPITAL]: [
+    EMERGENCY_STATES.EMERGENCY_COMPLETED,
+  ],
+});
+
+const roleTransitions = Object.freeze({
+  [ROLES.USER]: [
+    EMERGENCY_STATES.HOSPITAL_SELECTED,
+    EMERGENCY_STATES.AMBULANCE_ASSIGNED,
+    EMERGENCY_STATES.CANCELLED,
+  ],
+  [ROLES.AMBULANCE]: [
+    EMERGENCY_STATES.AMBULANCE_ACCEPTED,
+    EMERGENCY_STATES.AMBULANCE_EN_ROUTE_TO_USER,
+    EMERGENCY_STATES.AMBULANCE_ARRIVED,
+    EMERGENCY_STATES.OTP_VERIFIED,
+    EMERGENCY_STATES.PATIENT_PICKED_UP,
+    EMERGENCY_STATES.EN_ROUTE_TO_HOSPITAL,
+    EMERGENCY_STATES.ARRIVED_AT_HOSPITAL,
+  ],
+  [ROLES.HOSPITAL]: [
+    EMERGENCY_STATES.EMERGENCY_COMPLETED,
+  ],
+  [ROLES.ADMIN]: Object.values(EMERGENCY_STATES),
+});
+
+export const canTransitionEmergency = (fromState, toState, actorRole) => {
+  if (TERMINAL_EMERGENCY_STATES.includes(fromState)) {
+    return false;
+  }
+
+  const nextStates = allowedTransitions[fromState] || [];
+  const actorStates = roleTransitions[actorRole] || [];
+
+  return nextStates.includes(toState) && actorStates.includes(toState);
+};
+
+export const getAllowedTransitions = (fromState, actorRole) => {
+  if (TERMINAL_EMERGENCY_STATES.includes(fromState)) {
+    return [];
+  }
+
+  const nextStates = allowedTransitions[fromState] || [];
+  const actorStates = roleTransitions[actorRole] || [];
+
+  return nextStates.filter((state) => actorStates.includes(state));
+};

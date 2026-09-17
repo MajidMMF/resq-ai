@@ -1,0 +1,19 @@
+{
+  "name": "emergency",
+  "version": "1.0.0",
+  "description": "ResQ AI emergency lifecycle service",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon index.js"
+  },
+  "type": "module",
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "mongoose": "^9.10.0",
+    "morgan": "^1.12.1",
+    "nodemon": "^3.1.14"
+  }
+}

@@ -1,0 +1,15 @@
+export const toUserResponse = (user) => ({
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  mobile: user.mobile,
+  avatar: user.avatar || "",
+  roles: user.roles,
+  hospitalId: user.hospitalId ?? null,
+  ambulanceId: user.ambulanceId ?? null,
+  twoFactorEnabled: user.twoFactorEnabled,
+  isActive: user.isActive,
+  profileCompleted: user.profileCompleted,
+  createdAt: user.createdAt,
+  updatedAt: user.updatedAt,
+});
