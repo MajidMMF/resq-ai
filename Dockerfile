@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ WORKDIR /app/backend
 # Install concurrently globally
 RUN npm install -g concurrently
 
-# Install dependencies using --prefix to avoid path issues
+# Install dependencies using --prefix to avoid directory issues
 RUN npm install --omit=dev && \
     npm --prefix gateway install --omit=dev && \
     npm --prefix services/auth install --omit=dev && \
