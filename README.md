@@ -13,10 +13,15 @@
 
 - 🖥️ **Live Web Application (Vercel):** [https://resq-ai-lilac.vercel.app/](https://resq-ai-lilac.vercel.app/)
 - ⚡ **API Gateway & Microservices (Railway):** [https://resq-ai-production-53df.up.railway.app/](https://resq-ai-production-53df.up.railway.app/)
-- 📂 **GitHub Repository:** [https://github.com/MajidMMF/resq-ai](https://github.com/MajidMMF/resq-ai)
-- 🔑 **Instant Demo Credentials:**
-  - **Citizen / User Account:** `majid@test.com` | `Password123!`
-  - **Or Click "Register"** to create a role-based account (Citizen, Ambulance Driver, Hospital Staff, Admin).
+- 🔑 **Instant Demo Credentials (Hackathon Evaluators & Judges):**
+
+| Role / Portal | Demo Email | Password | Destination & Capabilities |
+| :--- | :--- | :--- | :--- |
+| 👤 **Citizen / User Panel** | `abc@gmail.com` | `99999999` | 1-Tap SOS, Multimodal AI Triage, Live Tracking |
+| 🚑 **Ambulance Driver Cockpit** | `abc1@gmail.com` | `99999999` | Real-time GPS routing, OTP Patient Verification |
+| 🏥 **Hospital Command Center** | `abc2@gmail.com` | `99999999` | Live ICU / Bed Allocator, Pre-Arrival Triage Alerts |
+
+> 💡 *Judges can directly use the credentials above on the [Login Page](https://resq-ai-lilac.vercel.app/login) to evaluate each dashboard instantly.*
 
 ---
 
@@ -119,15 +124,18 @@ flowchart TD
 The application provides tailored, real-time command interfaces for all 4 emergency stakeholders:
 
 ### 👤 Citizen / Bystander Portal
+### 👤 Citizen / Bystander Portal (`abc@gmail.com` / `99999999`)
 - **1-Tap Emergency Trigger**: Instant SOS with auto-GPS capture.
 - **Live Dispatch Stepper**: Real-time progress tracker (Assigned → Dispatched → Picked Up → Hospital Arrived).
 - **Interactive AI Medical Advisor**: Floating conversational assistant providing immediate CPR/first-aid instructions while the ambulance is en route.
 
 ### 🚑 Ambulance Driver Cockpit
+### 🚑 Ambulance Driver Cockpit (`abc1@gmail.com` / `99999999`)
 - **Turn-by-Turn Route Polyline**: Optimized emergency route to the patient and from the patient to the designated trauma hospital.
 - **One-Click Handshake**: Arrival OTP verification and patient status updates.
 
 ### 🏥 Hospital Trauma Command Center
+### 🏥 Hospital Trauma Command Center (`abc2@gmail.com` / `99999999`)
 - **Pre-Arrival Notification Board**: Complete trauma breakdown, estimated ETA, and patient medical profile before physical arrival.
 - **Real-Time Resource Allocation**: Toggle bed occupancy, ICU beds, and ventilator availability with instant system-wide sync.
 
