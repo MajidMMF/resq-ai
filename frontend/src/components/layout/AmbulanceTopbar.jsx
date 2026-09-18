@@ -12,8 +12,8 @@ export const AmbulanceTopbar = ({
   isUpdating = false,
 }) => {
   const { user } = useAuth();
-  const plateNumber = ambulance?.plateNumber || "UNIT-UNASSIGNED";
-  const vehicleType = ambulance?.type || "ALS";
+  const plateNumber = ambulance?.plateNumber || user?.ambulance?.plateNumber || "TS-16-MM-0004";
+  const vehicleType = (ambulance?.type || "basic").toUpperCase();
 
   return (
     <header className="h-16 border-b border-dark-800/80 bg-dark-950/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 select-none">

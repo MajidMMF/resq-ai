@@ -38,7 +38,6 @@ export async function getDriverAndAmbulance(userId, userEmail) {
   let driver = await AmbulanceDriver.findOne({
     $or: orQueries,
     status: { $ne: "SUSPENDED" },
-  });
   }).sort({ createdAt: 1 });
 
   if (driver && !driver.userId && userId && mongoose.Types.ObjectId.isValid(userId)) {
@@ -46,30 +45,9 @@ export async function getDriverAndAmbulance(userId, userEmail) {
     await driver.save();
   }
 
-  // Self-healing fallback: auto-provision ambulance & driver if not found
-  if (!driver && userEmail) {
   // If driver was not found, check if this is the demo ambulance driver
   if (!driver && userEmail && userEmail.toLowerCase() === "abc1@gmail.com") {
     try {
-      const plateNumber = `TS-09-EM-${Math.floor(100 + Math.random() * 900)}`;
-      const newAmb = await Ambulance.create({
-        plateNumber,
-        type: "advanced",
-        location: { type: "Point", coordinates: [78.445, 17.41] },
-        status: "online",
-        isApproved: true,
-        isActive: true,
-        lastLocationAt: new Date(),
-      });
-      driver = await AmbulanceDriver.create({
-        ambulanceId: newAmb._id,
-        email: userEmail.toLowerCase(),
-        userId: userId && mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : null,
-        name: "Paramedic Driver",
-        status: "ACTIVE",
-        activatedAt: new Date(),
-      });
-      return { driver, ambulance: newAmb };
       let ambulance = await Ambulance.findOne({ plateNumber: "TS-16-MM-0004" });
       if (!ambulance) {
         ambulance = await Ambulance.create({
@@ -96,7 +74,6 @@ export async function getDriverAndAmbulance(userId, userEmail) {
       );
       return { driver, ambulance };
     } catch (createErr) {
-      console.error("[getDriverAndAmbulance] Auto-provision failed:", createErr.message);
       console.error("[getDriverAndAmbulance] abc1 provision error:", createErr.message);
     }
   }
