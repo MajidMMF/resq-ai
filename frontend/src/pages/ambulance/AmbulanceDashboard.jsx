@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import {
   useGetMyAssignmentsQuery,
   useAcceptAssignmentMutation,
@@ -17,7 +17,7 @@ import HospitalMarker from "../../components/maps/HospitalMarker";
 import UserMarker from "../../components/maps/UserMarker";
 import RoutePolyline from "../../components/maps/RoutePolyline";
 import useSocket from "../../hooks/useSocket";
-import { playPrettyChime } from "../../utils/notificationSound";
+import { playPrettyChime, playEmergencyAlertSiren } from "../../utils/notificationSound";
 import {
   AlertTriangle,
   MapPin,
@@ -107,47 +107,61 @@ export const AmbulanceDashboard = () => {
     }
   }, []);
 
-  // Real-time socket listener for incoming emergencies
-  const { on, off } = useSocket();
+  // Real-time socket listener for incoming emergencies & dispatches
+  const outletCtx = useOutletContext() || {};
+  const ambulanceId = outletCtx?.ambulance?._id || outletCtx?.ambulance?.id;
+  const { socket, on, off, emit } = useSocket();
   const [liveIncidents, setLiveIncidents] = useState([]);
   const [selectedIncident, setSelectedIncident] = useState(null);
 
   useEffect(() => {
+    if (!socket) return;
+
+    // Join regional and personal unit rooms for instant callouts
+    emit("room:join", { room: "ambulances" });
+    emit("room:join", { room: "role:ambulance" });
+    if (ambulanceId) {
+      emit("room:join", { room: `ambulance:${ambulanceId}` });
+    }
+
     const handleNewEmergency = (data) => {
+      console.log("🚨 [AmbulanceDashboard] Emergency callout received:", data);
+
+      // Play authoritative EMS dispatcher siren tone
+      playEmergencyAlertSiren();
+
       const inc = data?.incident || data;
-      if (!inc || !inc._id) return;
-
-      console.log("🚨 [AmbulanceDashboard] Emergency callout received:", inc);
-
-      // Play modern chime confirmation sound
-      playPrettyChime();
-
-      toast.error("🚨 NEW EMERGENCY CALLOUT DETECTED!", {
-        description: inc.location?.address
+      toast.error("🚨 EMERGENCY CALLOUT ASSIGNED TO YOUR UNIT!", {
+        description: inc?.location?.address
           ? `${inc.type || "Trauma"}: ${inc.location.address.split(",").slice(0, 3).join(",")}`
-          : "Immediate response requested. Pinned on your live radar map.",
-        duration: 10000,
+          : "Immediate response requested. Route locked on your live HUD.",
+        duration: 12000,
       });
 
-      setLiveIncidents((prev) => {
-        if (prev.some((p) => p._id === inc._id)) return prev;
-        return [inc, ...prev];
-      });
-
-      setSelectedIncident(inc);
+      if (inc && inc._id) {
+        setLiveIncidents((prev) => {
+          if (prev.some((p) => p._id === inc._id)) return prev;
+          return [inc, ...prev];
+        });
+        setSelectedIncident(inc);
+      }
       refetch();
     };
 
+    on("ambulance:requested", handleNewEmergency);
+    on("ambulance:assignment", handleNewEmergency);
+    on("assignment:new", handleNewEmergency);
     on("incident:created", handleNewEmergency);
     on("emergency:new", handleNewEmergency);
-    on("assignment:new", handleNewEmergency);
 
     return () => {
+      off("ambulance:requested", handleNewEmergency);
+      off("ambulance:assignment", handleNewEmergency);
+      off("assignment:new", handleNewEmergency);
       off("incident:created", handleNewEmergency);
       off("emergency:new", handleNewEmergency);
-      off("assignment:new", handleNewEmergency);
     };
-  }, [on, off, refetch]);
+  }, [socket, ambulanceId, on, off, emit, refetch]);
 
   // Merge socket incidents with API active incidents
   const allCombinedIncidents = [

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   useGetIncidentByIdQuery,
@@ -155,9 +155,22 @@ export const Emergency = () => {
 
   const currentStatus = incident.status || "REPORTED";
 
+  // Audio chime when arrival OTP is generated and becomes visible
+  const prevOtpRef = useRef(incident?.arrivalOtp);
+  useEffect(() => {
+    if (incident?.arrivalOtp && !prevOtpRef.current) {
+      playPrettyChime();
+      toast.info(`🔒 Arrival OTP: ${incident.arrivalOtp}`, {
+        description: "Your 4-digit code is ready. Hand this to the paramedic crew upon arrival.",
+      });
+    }
+    prevOtpRef.current = incident?.arrivalOtp;
+  }, [incident?.arrivalOtp]);
+
   // Hospital Selection Handler
   const handleSelectHospital = async (hosp) => {
     setSelectedHospital(hosp);
+    playPrettyChime();
     try {
       await selectHospitalMutation({
         id: incidentId,
@@ -183,7 +196,7 @@ export const Emergency = () => {
       null;
 
     try {
-      await requestAmbulanceMutation({
+      const res = await requestAmbulanceMutation({
         id: incidentId,
         ambulanceId: amb._id || amb.id,
         hospitalId: targetHospitalId,
@@ -195,7 +208,14 @@ export const Emergency = () => {
           location: amb.location,
         },
       }).unwrap();
-      toast.success(`Ambulance unit ${amb.plateNumber || "TS-09-EM-108"} requested!`);
+
+      playPrettyChime();
+      const otpCode = res?.data?.arrivalOtp || incident?.arrivalOtp;
+      toast.success(`Ambulance unit ${amb.plateNumber || "TS-16-MM-0004"} requested!`, {
+        description: otpCode
+          ? `🔒 Arrival OTP generated: ${otpCode}. Share with driver upon arrival.`
+          : "Driver alerted on HUD cockpit.",
+      });
       refetch();
     } catch (e) {
       toast.error("Dispatch request failed");

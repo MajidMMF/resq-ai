@@ -21,7 +21,7 @@ import AmbulanceMarker from "../../components/maps/AmbulanceMarker";
 import UserMarker from "../../components/maps/UserMarker";
 import RoutePolyline from "../../components/maps/RoutePolyline";
 import HospitalLocationModal from "../../components/hospital/HospitalLocationModal";
-import { playPrettyChime } from "../../utils/notificationSound";
+import { playPrettyChime, playEmergencyAlertSiren } from "../../utils/notificationSound";
 import {
   Activity,
   AlertOctagon,
@@ -65,7 +65,8 @@ export const HospitalDashboard = () => {
   ];
 
   // Socket.IO realtime connection
-  const { on, off } = useSocket();
+  const { socket, on, off, emit } = useSocket();
+  const hospitalId = hospital?._id || hospital?.id;
 
   // Mutations
   const [acceptPatient, { isLoading: isAccepting }] = useAcceptIncomingPatientMutation();
@@ -81,22 +82,31 @@ export const HospitalDashboard = () => {
 
   // Real-time socket listener for incoming trauma incidents
   useEffect(() => {
+    if (!socket) return;
+
+    // Join hospital rooms for direct emergency routing alerts
+    emit("room:join", { room: "hospitals" });
+    emit("room:join", { room: "role:hospital" });
+    if (hospitalId) {
+      emit("room:join", { room: `hospital:${hospitalId}` });
+    }
+
     const handleNewIncident = (data) => {
       const inc = data?.incident || data;
       if (!inc || !inc._id) return;
 
       console.log("🚨 [HospitalDashboard] Socket incident received:", inc);
 
-      // Play pretty notification chime
+      // Play emergency siren alert tone
       if (audioAlertEnabled) {
-        playPrettyChime();
+        playEmergencyAlertSiren();
       }
 
-      toast.error("🚨 CRITICAL TRAUMA INCIDENT REPORTED!", {
+      toast.error("🚨 INCOMING TRAUMA PATIENT DIRECTED TO YOUR ER!", {
         description: inc.location?.address
           ? `${inc.type || "Trauma"}: ${inc.location.address.split(",").slice(0, 3).join(",")}`
           : "Immediate response required. Live incident pinned on radar map.",
-        duration: 9000,
+        duration: 10000,
       });
 
       setRealtimeIncidents((prev) => {
@@ -108,16 +118,18 @@ export const HospitalDashboard = () => {
       refetch();
     };
 
+    on("hospital:assigned", handleNewIncident);
     on("incident:created", handleNewIncident);
     on("emergency:new", handleNewIncident);
     on("incident:broadcast", handleNewIncident);
 
     return () => {
+      off("hospital:assigned", handleNewIncident);
       off("incident:created", handleNewIncident);
       off("emergency:new", handleNewIncident);
       off("incident:broadcast", handleNewIncident);
     };
-  }, [on, off, refetch]);
+  }, [socket, hospitalId, audioAlertEnabled, on, off, emit, refetch]);
 
   // Keep first incoming incident selected by default if available
   useEffect(() => {

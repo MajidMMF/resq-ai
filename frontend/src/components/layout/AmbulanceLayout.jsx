@@ -25,8 +25,15 @@ export const AmbulanceLayout = () => {
 
   const { latitude, longitude } = useGeolocation();
 
+  // Background driver GPS reporting to ambulance-service
   // Background driver GPS reporting to ambulance-service (heartbeat every 15s)
   React.useEffect(() => {
+    if (isOnline && latitude && longitude) {
+      updateLocation({
+        latitude,
+        longitude,
+      }).catch(() => {});
+    }
     if (!isOnline) return;
 
     const reportPos = () => {

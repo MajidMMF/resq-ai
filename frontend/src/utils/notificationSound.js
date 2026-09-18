@@ -7,6 +7,26 @@
 
 let sharedAudioCtx = null;
 
+function initGlobalUnlock() {
+  if (typeof window === "undefined") return;
+  const unlock = () => {
+    try {
+      if (!sharedAudioCtx) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) sharedAudioCtx = new AudioCtx();
+      }
+      if (sharedAudioCtx && sharedAudioCtx.state === "suspended") {
+        sharedAudioCtx.resume().catch(() => {});
+      }
+    } catch (e) {}
+  };
+  window.addEventListener("click", unlock, { passive: true });
+  window.addEventListener("pointerdown", unlock, { passive: true });
+  window.addEventListener("keydown", unlock, { passive: true });
+}
+
+initGlobalUnlock();
+
 function getAudioContext() {
   if (!sharedAudioCtx) {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -126,8 +146,50 @@ export function playSuccessChime() {
   }
 }
 
+/**
+ * High-priority emergency dispatch siren/chime
+ * Used by Ambulance Cockpit and Hospital Trauma Room when user selects them
+ */
+export function playEmergencyAlertSiren() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(0.35, now);
+    masterGain.connect(ctx.destination);
+
+    // Urgent 3-tone attention beep: 659Hz (E5) -> 880Hz (A5) -> 1318Hz (E6)
+    const tones = [
+      { freq: 659.25, start: 0.0, dur: 0.15 },
+      { freq: 880.0, start: 0.18, dur: 0.18 },
+      { freq: 1318.51, start: 0.40, dur: 0.45 },
+    ];
+
+    tones.forEach(({ freq, start, dur }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + start);
+
+      gain.gain.setValueAtTime(0.001, now + start);
+      gain.gain.linearRampToValueAtTime(0.85, now + start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
+
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start(now + start);
+      osc.stop(now + start + dur + 0.01);
+    });
+  } catch (e) {
+    console.warn("Could not play emergency siren:", e);
+  }
+}
+
 export default {
   playPrettyChime,
   playSuccessChime,
+  playEmergencyAlertSiren,
 };
 
