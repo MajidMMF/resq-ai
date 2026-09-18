@@ -131,6 +131,18 @@ export const Emergency = () => {
     };
   }, [socket, incidentId, refetch]);
 
+  // Audio chime when arrival OTP is generated and becomes visible
+  const prevOtpRef = useRef(incident?.arrivalOtp);
+  useEffect(() => {
+    if (incident?.arrivalOtp && !prevOtpRef.current) {
+      playPrettyChime();
+      toast.info(`🔒 Arrival OTP: ${incident.arrivalOtp}`, {
+        description: "Your 4-digit code is ready. Hand this to the paramedic crew upon arrival.",
+      });
+    }
+    prevOtpRef.current = incident?.arrivalOtp;
+  }, [incident?.arrivalOtp]);
+
   if (isLoading && !incident) {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
@@ -154,18 +166,6 @@ export const Emergency = () => {
   }
 
   const currentStatus = incident.status || "REPORTED";
-
-  // Audio chime when arrival OTP is generated and becomes visible
-  const prevOtpRef = useRef(incident?.arrivalOtp);
-  useEffect(() => {
-    if (incident?.arrivalOtp && !prevOtpRef.current) {
-      playPrettyChime();
-      toast.info(`🔒 Arrival OTP: ${incident.arrivalOtp}`, {
-        description: "Your 4-digit code is ready. Hand this to the paramedic crew upon arrival.",
-      });
-    }
-    prevOtpRef.current = incident?.arrivalOtp;
-  }, [incident?.arrivalOtp]);
 
   // Hospital Selection Handler
   const handleSelectHospital = async (hosp) => {
