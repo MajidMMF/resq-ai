@@ -505,12 +505,7 @@ export const requestAmbulance = async (req, res) => {
       incident.selectedHospitalId = new mongoose.Types.ObjectId(hospitalId);
     }
 
-    // Generate 4-digit Arrival OTP immediately on ambulance request
-    if (!incident.arrivalOtp) {
-      incident.arrivalOtp = String(Math.floor(1000 + Math.random() * 9000));
-      incident.otpExpiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
-    }
-
+    // Arrival OTP is generated and revealed only after the ambulance driver ACCEPTS the callout
     incident.status = INCIDENT_STATES.AMBULANCE_REQUESTED;
     await incident.save();
 
@@ -518,7 +513,7 @@ export const requestAmbulance = async (req, res) => {
       incident._id,
       "AMBULANCE_REQUESTED",
       userId && mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : null,
-      { ambulanceId, hospitalId, arrivalOtp: incident.arrivalOtp }
+      { ambulanceId, hospitalId }
     );
 
     await cacheIncident(incident);
@@ -540,7 +535,6 @@ export const requestAmbulance = async (req, res) => {
             userId: userId || null,
             hospitalId: incident.hospitalId ? incident.hospitalId.toString() : null,
             priority: incident.priority || "HIGH",
-            arrivalOtp: incident.arrivalOtp,
           }),
         });
 
@@ -607,6 +601,12 @@ export const updateStatus = async (req, res) => {
     }
     if (metadata.arrivalOtp) {
       incident.arrivalOtp = metadata.arrivalOtp;
+    } else if (
+      (status === INCIDENT_STATES.AMBULANCE_ACCEPTED || status === INCIDENT_STATES.EN_ROUTE) &&
+      !incident.arrivalOtp
+    ) {
+      incident.arrivalOtp = String(Math.floor(1000 + Math.random() * 9000));
+      incident.otpExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
     }
     if (metadata.otpExpiresAt) {
       incident.otpExpiresAt = new Date(metadata.otpExpiresAt);

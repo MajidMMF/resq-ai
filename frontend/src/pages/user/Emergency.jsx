@@ -210,11 +210,8 @@ export const Emergency = () => {
       }).unwrap();
 
       playPrettyChime();
-      const otpCode = res?.data?.arrivalOtp || incident?.arrivalOtp;
       toast.success(`Ambulance unit ${amb.plateNumber || "TS-16-MM-0004"} requested!`, {
-        description: otpCode
-          ? `🔒 Arrival OTP generated: ${otpCode}. Share with driver upon arrival.`
-          : "Driver alerted on HUD cockpit.",
+        description: "Emergency alert sent to paramedic cockpit. Waiting for driver to accept callout...",
       });
       refetch();
     } catch (e) {
@@ -376,13 +373,31 @@ export const Emergency = () => {
         }}
       />
 
-      {/* 5. ARRIVAL OTP (Available immediately upon dispatch/request) */}
-      {(incident.arrivalOtp ||
-        ["AMBULANCE_REQUESTED", "AMBULANCE_ASSIGNED", "AMBULANCE_ACCEPTED", "EN_ROUTE", "ARRIVED"].includes(
-          currentStatus
-        )) && (
+      {/* 4.5. WAITING FOR CREW ACCEPTANCE CARD */}
+      {currentStatus === "AMBULANCE_REQUESTED" && (
+        <div className="p-6 rounded-2xl bg-gradient-to-r from-amber-950/40 via-dark-900 to-dark-900 border-2 border-amber-500/50 shadow-xl space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
+              <span className="w-3 h-3 rounded-full bg-amber-400 animate-ping" />
+              <span className="text-xs font-mono font-bold text-amber-400 uppercase tracking-widest">
+                DISPATCH REQUEST SENT • WAITING FOR CREW ACCEPTANCE
+              </span>
+            </div>
+            <span className="text-xs font-mono px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/30">
+              Unit: {assignedAmbulance?.plateNumber || "TS-16-MM-0004"}
+            </span>
+          </div>
+          <p className="text-sm text-dark-200">
+            Emergency alert has been transmitted to the paramedic crew cockpit. As soon as the driver acknowledges and accepts the emergency route, your <span className="text-white font-semibold">4-digit Arrival OTP</span> will unlock here.
+          </p>
+        </div>
+      )}
+
+      {/* 5. ARRIVAL OTP (Only available after crew accepts the callout) */}
+      {Boolean(incident.arrivalOtp) &&
+        ["AMBULANCE_ACCEPTED", "EN_ROUTE", "ARRIVED"].includes(currentStatus) && (
         <OTPDisplay
-          otp={incident.arrivalOtp || "4829"}
+          otp={incident.arrivalOtp}
           status={currentStatus}
           ambulance={assignedAmbulance}
         />

@@ -169,11 +169,18 @@ export const AmbulanceDashboard = () => {
     ...apiActiveIncidents.filter((ai) => !liveIncidents.some((li) => li._id === ai._id)),
   ];
 
-  // Active callout spotlight (either socket broadcast or requested assignment)
+  // Active callout spotlight (direct pending assignment to this unit takes highest priority)
+  const pendingAssignmentObj = pendingRequest
+    ? (pendingRequest.incidentId && typeof pendingRequest.incidentId === "object"
+        ? { ...pendingRequest.incidentId, _id: pendingRequest.incidentId._id || pendingRequest._id, assignmentId: pendingRequest._id }
+        : { _id: pendingRequest._id, assignmentId: pendingRequest._id })
+    : null;
+
   const activeCallout =
+    pendingAssignmentObj ||
     selectedIncident ||
     allCombinedIncidents[0] ||
-    (pendingRequest?.incidentId ? { ...pendingRequest.incidentId, _id: pendingRequest._id } : null);
+    null;
 
   const incidentCoords = activeCallout?.location?.coordinates
     ? [activeCallout.location.coordinates[1], activeCallout.location.coordinates[0]]
@@ -185,11 +192,12 @@ export const AmbulanceDashboard = () => {
 
   const handleAccept = async (id) => {
     try {
-      if (pendingRequest) {
-        await acceptAssignment(pendingRequest._id).unwrap();
+      const targetAssignmentId = pendingRequest?._id || activeCallout?.assignmentId;
+      if (targetAssignmentId) {
+        await acceptAssignment(targetAssignmentId).unwrap();
         toast.success("Emergency accepted! Navigation engaged.");
         refetch();
-        navigate(`/ambulance/run/${pendingRequest._id}`);
+        navigate(`/ambulance/run/${targetAssignmentId}`);
       } else {
         toast.success("Emergency acknowledged! Route locked on HUD.");
       }

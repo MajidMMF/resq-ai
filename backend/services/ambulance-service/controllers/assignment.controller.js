@@ -101,6 +101,21 @@ export const acceptAssignment = async (req, res) => {
       });
     }
 
+    // Generate 4-digit arrival OTP upon driver acceptance
+    let plainOtp = null;
+    let hash = assignment.arrivalOtpHash;
+    let expiresAt = assignment.arrivalOtpExpiresAt;
+
+    if (!hash || !expiresAt || expiresAt < new Date()) {
+      plainOtp = await generateOtp();
+      const saved = await saveOtp(assignment._id, plainOtp);
+      hash = saved.hash;
+      expiresAt = saved.expiresAt;
+      assignment.arrivalOtpHash = hash;
+      assignment.arrivalOtpExpiresAt = expiresAt;
+      assignment.arrivalOtpAttempts = 0;
+    }
+
     assignment.status = "ACCEPTED";
     assignment.acceptedAt = new Date();
     await assignment.save();
@@ -111,17 +126,30 @@ export const acceptAssignment = async (req, res) => {
     await redis.set(`ambulance:status:${ambulance._id}`, "busy", "EX", STATUS_TTL);
 
     // Emit socket event: ambulance:accepted → incident:{incidentId}
-    broadcastToIncident(assignment.incidentId, "ambulance:accepted", {
+    const socketPayload = {
       incidentId: assignment.incidentId,
       ambulanceId: ambulance._id,
       acceptedAt: assignment.acceptedAt,
-    });
+    };
+    if (plainOtp) {
+      socketPayload.arrivalOtp = plainOtp;
+      socketPayload.otp = plainOtp;
+    }
+    broadcastToIncident(assignment.incidentId, "ambulance:accepted", socketPayload);
+    if (assignment.userId) {
+      broadcastToUser(assignment.userId, "ambulance:accepted", socketPayload);
+    }
 
     // Notify incident-service HTTP
-    await notifyIncident(assignment.incidentId, "AMBULANCE_ACCEPTED", {
+    const notifyPayload = {
       ambulanceId: ambulance._id,
       acceptedAt: assignment.acceptedAt,
-    });
+    };
+    if (plainOtp) {
+      notifyPayload.arrivalOtp = plainOtp;
+      notifyPayload.otpExpiresAt = expiresAt;
+    }
+    await notifyIncident(assignment.incidentId, "AMBULANCE_ACCEPTED", notifyPayload);
 
     return res.status(200).json({
       success: true,
