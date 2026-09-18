@@ -38,37 +38,43 @@ export async function getDriverAndAmbulance(userId, userEmail) {
   let driver = await AmbulanceDriver.findOne({
     $or: orQueries,
     status: { $ne: "SUSPENDED" },
-  });
+  }).sort({ createdAt: 1 });
 
   if (driver && !driver.userId && userId && mongoose.Types.ObjectId.isValid(userId)) {
     driver.userId = new mongoose.Types.ObjectId(userId);
     await driver.save();
   }
 
-  // Self-healing fallback: auto-provision ambulance & driver if not found
-  if (!driver && userEmail) {
+  // If driver was not found, check if this is the demo ambulance driver
+  if (!driver && userEmail && userEmail.toLowerCase() === "abc1@gmail.com") {
     try {
-      const plateNumber = `TS-09-EM-${Math.floor(100 + Math.random() * 900)}`;
-      const newAmb = await Ambulance.create({
-        plateNumber,
-        type: "advanced",
-        location: { type: "Point", coordinates: [78.445, 17.41] },
-        status: "online",
-        isApproved: true,
-        isActive: true,
-        lastLocationAt: new Date(),
-      });
-      driver = await AmbulanceDriver.create({
-        ambulanceId: newAmb._id,
-        email: userEmail.toLowerCase(),
-        userId: userId && mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : null,
-        name: "Paramedic Driver",
-        status: "ACTIVE",
-        activatedAt: new Date(),
-      });
-      return { driver, ambulance: newAmb };
+      let ambulance = await Ambulance.findOne({ plateNumber: "TS-16-MM-0004" });
+      if (!ambulance) {
+        ambulance = await Ambulance.create({
+          plateNumber: "TS-16-MM-0004",
+          type: "basic",
+          location: { type: "Point", coordinates: [78.4744, 17.3478] },
+          status: "online",
+          isApproved: true,
+          isActive: true,
+          lastLocationAt: new Date(),
+        });
+      }
+      driver = await AmbulanceDriver.findOneAndUpdate(
+        { email: "abc1@gmail.com" },
+        {
+          ambulanceId: ambulance._id,
+          email: "abc1@gmail.com",
+          userId: userId && mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : null,
+          name: "abc1",
+          status: "ACTIVE",
+          activatedAt: new Date(),
+        },
+        { upsert: true, new: true }
+      );
+      return { driver, ambulance };
     } catch (createErr) {
-      console.error("[getDriverAndAmbulance] Auto-provision failed:", createErr.message);
+      console.error("[getDriverAndAmbulance] abc1 provision error:", createErr.message);
     }
   }
 
@@ -381,7 +387,7 @@ export const getAvailableAmbulances = async (req, res) => {
       console.warn("Geospatial query failed, falling back to online search:", geoErr.message);
     }
 
-    // Fallback 1: if no ambulances found near the point, return all online ambulances
+    // Fallback: if no ambulances found near the specific radius, return online approved ambulances
     if (!ambulances || ambulances.length === 0) {
       ambulances = await Ambulance.find({
         status: "online",
@@ -390,12 +396,10 @@ export const getAvailableAmbulances = async (req, res) => {
       }).lean().limit(25);
     }
 
-    // Fallback 2: return any approved ambulances
-    if (!ambulances || ambulances.length === 0) {
-      ambulances = await Ambulance.find({
-        isApproved: true,
-      }).lean().limit(25);
-    }
+    // STRICT FILTER: Like Uber, only return units that are genuinely online and active
+    ambulances = (ambulances || []).filter(
+      (amb) => amb.status === "online" && amb.isActive === true && amb.isApproved === true
+    );
 
     const results = (ambulances || []).map((amb) => {
       const ambLng = amb.location?.coordinates?.[0] ?? 78.4482;
