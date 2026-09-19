@@ -29,23 +29,139 @@ import {
 } from "lucide-react";
 
 export const Landing = () => {
-  // Simulated moving ambulance coordinates on the live demo map
-  const [ambPos, setAmbPos] = useState([28.585, 77.218]);
-  const scenePos = [28.6139, 77.209]; // Connaught Place / Delhi Scene
-  const hospitalPos = [28.5672, 77.21]; // AIIMS Apex Trauma Center
+  // Default fallback coordinates: Hyderabad Regional Hub (Charminar / Osmania General Hospital)
+  const DEFAULT_SCENE = [17.385, 78.4867];
+  const DEFAULT_HOSPITAL = [17.379, 78.476];
 
+  const [scenePos, setScenePos] = useState(DEFAULT_SCENE);
+  const [hospitalPos, setHospitalPos] = useState(DEFAULT_HOSPITAL);
+  const [hospitalName, setHospitalName] = useState("Osmania Apex Trauma Center");
+  const [isVisitorLocation, setIsVisitorLocation] = useState(false);
+  const [roadPath, setRoadPath] = useState([]);
+  const [ambPos, setAmbPos] = useState([DEFAULT_SCENE[0] + 0.012, DEFAULT_SCENE[1] + 0.01]);
+  const [telemetry, setTelemetry] = useState({
+    speed: 58,
+    distanceKm: "1.8 km",
+    eta: "3.5 mins",
+    status: "EN ROUTE TO SCENE",
+  });
+
+  // 1. Detect visitor live geolocation (fallback to Hyderabad on error or denial)
   useEffect(() => {
-    const interval = setInterval(() => {
-      setAmbPos((prev) => {
-        // Slowly nudge toward scene
-        const dLat = (scenePos[0] - prev[0]) * 0.05;
-        const dLng = (scenePos[1] - prev[1]) * 0.05;
-        if (Math.abs(dLat) < 0.0001) return [28.575, 77.225]; // Reset loop
-        return [prev[0] + dLat, prev[1] + dLng];
-      });
-    }, 1500);
-    return () => clearInterval(interval);
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = Number(pos.coords.latitude.toFixed(5));
+          const lng = Number(pos.coords.longitude.toFixed(5));
+          const userCoords = [lat, lng];
+          const hospCoords = [
+            Number((lat - 0.014).toFixed(5)),
+            Number((lng - 0.012).toFixed(5)),
+          ];
+          setScenePos(userCoords);
+          setHospitalPos(hospCoords);
+          setHospitalName("Regional Emergency Trauma Hospital");
+          setIsVisitorLocation(true);
+        },
+        (err) => {
+          console.log("Visitor location denied or unavailable, using Hyderabad default:", err.message);
+          setScenePos(DEFAULT_SCENE);
+          setHospitalPos(DEFAULT_HOSPITAL);
+          setHospitalName("Osmania Apex Trauma Center");
+          setIsVisitorLocation(false);
+        },
+        { timeout: 8000, enableHighAccuracy: true }
+      );
+    }
   }, []);
+
+  // 2. Fetch turn-by-turn road route via free OSRM driving engine
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadRoadRoute() {
+      const ambStart = [
+        Number((scenePos[0] + 0.013).toFixed(5)),
+        Number((scenePos[1] + 0.011).toFixed(5)),
+      ];
+
+      const fetchSegment = async (start, end) => {
+        try {
+          const url = `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`;
+          const res = await fetch(url);
+          const data = await res.json();
+          if (data?.routes?.[0]?.geometry?.coordinates) {
+            // OSRM returns [lng, lat] -> Leaflet uses [lat, lng]
+            return data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+          }
+        } catch (e) {
+          console.warn("OSRM road routing fallback:", e.message);
+        }
+        // Fallback: 12 interpolated points along road line if OSRM takes too long
+        const fallback = [];
+        for (let i = 0; i <= 12; i++) {
+          const t = i / 12;
+          fallback.push([
+            Number((start[0] + (end[0] - start[0]) * t).toFixed(5)),
+            Number((start[1] + (end[1] - start[1]) * t).toFixed(5)),
+          ]);
+        }
+        return fallback;
+      };
+
+      // Segment 1: Ambulance starting depot to Scene (following streets)
+      const toScene = await fetchSegment(ambStart, scenePos);
+      // Segment 2: Scene to Destination Hospital (following streets)
+      const toHospital = await fetchSegment(scenePos, hospitalPos);
+
+      if (!isCancelled) {
+        const fullRoadPath = [...toScene, ...toHospital];
+        setRoadPath(fullRoadPath);
+        if (fullRoadPath.length > 0) {
+          setAmbPos(fullRoadPath[0]);
+        }
+      }
+    }
+
+    loadRoadRoute();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [scenePos, hospitalPos]);
+
+  // 3. Smooth street-by-street realistic movement along the road coordinates
+  useEffect(() => {
+    if (!roadPath || roadPath.length === 0) return;
+
+    let step = 0;
+    const interval = setInterval(() => {
+      step += 1;
+      if (step >= roadPath.length) {
+        step = 0;
+      }
+
+      const nextPos = roadPath[step];
+      setAmbPos(nextPos);
+
+      const remainingSteps = roadPath.length - step;
+      const progressFraction = step / roadPath.length;
+      const estDist = ((remainingSteps / roadPath.length) * 3.2).toFixed(1);
+      const estEta = Math.max(0.5, estDist * 1.4).toFixed(1);
+      const dynSpeed = Math.floor(46 + Math.random() * 18);
+
+      const statusText = progressFraction < 0.5 ? "EN ROUTE TO SCENE" : "TRANSPORTING TO ER";
+
+      setTelemetry({
+        speed: dynSpeed,
+        distanceKm: estDist > 0 ? `${estDist} km` : "Arrived",
+        eta: estDist > 0 ? `${estEta} mins` : "On Scene",
+        status: statusText,
+      });
+    }, 750);
+
+    return () => clearInterval(interval);
+  }, [roadPath]);
 
   return (
     <div className="flex-1 flex flex-col space-y-24 py-12 sm:py-16">
@@ -135,9 +251,13 @@ export const Landing = () => {
               </p>
             </div>
 
-            <div className="flex items-center space-x-3 text-xs font-mono">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+              <span className="px-3 py-1.5 rounded-xl bg-dark-950 border border-dark-700 text-cyan-400 font-bold flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+                {isVisitorLocation ? "LIVE: YOUR LOCATION" : "HYDERABAD HUB"}
+              </span>
               <span className="px-3 py-1.5 rounded-xl bg-dark-950 border border-dark-700 text-cyan-400 font-bold">
-                ETA: 4.2 Mins
+                ETA: {telemetry.eta}
               </span>
               <span className="px-3 py-1.5 rounded-xl bg-emergency-500/10 border border-emergency-500/30 text-emergency-400 font-bold">
                 CRITICAL TIER 1
@@ -150,34 +270,45 @@ export const Landing = () => {
             <MapContainer
               center={scenePos}
               zoom={13}
-              bounds={[scenePos, ambPos, hospitalPos]}
+              bounds={roadPath.length > 0 ? [scenePos, hospitalPos, ambPos] : [scenePos, hospitalPos]}
               className="w-full h-full"
             >
-              <UserMarker position={scenePos} label="Accident Scene (Victim Coordinates)" />
+              <UserMarker
+                position={scenePos}
+                label={isVisitorLocation ? "Your Detected Location (Incident Scene)" : "Accident Scene (Victim Coordinates)"}
+              />
               <AmbulanceMarker
                 position={ambPos}
-                plateNumber="AMB-104 (ALS)"
-                speed={58}
-                eta="4.2 mins"
+                plateNumber="TS-09-EM-108 (ALS)"
+                speed={telemetry.speed}
+                eta={telemetry.eta}
               />
               <HospitalMarker
                 position={hospitalPos}
-                name="AIIMS Apex Trauma Center"
+                name={hospitalName}
                 traumaLevel="LEVEL_1"
                 bedsAvailable={5}
               />
-              <RoutePolyline positions={[hospitalPos, ambPos, scenePos]} color="#22D3EE" />
+              {roadPath.length > 0 ? (
+                <RoutePolyline positions={roadPath} color="#22D3EE" />
+              ) : (
+                <RoutePolyline positions={[hospitalPos, ambPos, scenePos]} color="#22D3EE" />
+              )}
             </MapContainer>
 
             {/* Floating Live Telemetry Panel */}
             <div className="absolute top-4 left-4 z-[400] max-w-xs p-3.5 rounded-2xl bg-dark-950/85 backdrop-blur-md border border-dark-700 text-xs font-mono space-y-1.5 shadow-xl hidden sm:block">
               <div className="flex items-center justify-between text-dark-400">
                 <span>AMBULANCE SPEED</span>
-                <span className="text-white font-bold">58 km/h</span>
+                <span className="text-white font-bold">{telemetry.speed} km/h</span>
               </div>
               <div className="flex items-center justify-between text-dark-400">
-                <span>DISTANCE TO SCENE</span>
-                <span className="text-cyan-400 font-bold">1.8 km</span>
+                <span>REMAINING DISTANCE</span>
+                <span className="text-cyan-400 font-bold">{telemetry.distanceKm}</span>
+              </div>
+              <div className="flex items-center justify-between text-dark-400">
+                <span>DISPATCH STATUS</span>
+                <span className="text-emergency-400 font-bold">{telemetry.status}</span>
               </div>
               <div className="flex items-center justify-between text-dark-400">
                 <span>ICU BEDS PRE-ALLOCATED</span>
