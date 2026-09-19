@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import MapContainer from "../../../components/maps/MapContainer";
 import UserMarker from "../../../components/maps/UserMarker";
 import AmbulanceMarker from "../../../components/maps/AmbulanceMarker";
 import HospitalMarker from "../../../components/maps/HospitalMarker";
 import RoutePolyline from "../../../components/maps/RoutePolyline";
+import { fetchRoadRoute, calculateRouteDistanceKm } from "../../../utils/roadRouting";
 
 function calcHaversineKm(lat1, lon1, lat2, lon2) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 1.5;
@@ -40,7 +41,54 @@ export const LiveTrackingMap = ({
     "COMPLETED",
   ].includes(status);
 
-  let routePositions = [];
+  const [roadWaypoints, setRoadWaypoints] = useState([]);
+  const [animatedAmbPos, setAnimatedAmbPos] = useState(null);
+
+  // 1. Fetch real road-by-road turn coordinates from OSRM
+  useEffect(() => {
+    let isMounted = true;
+    const start = isEnRouteToHospital ? (userLoc || ambulanceLoc) : ambulanceLoc;
+    const end = isEnRouteToHospital ? hospitalLoc : userLoc;
+
+    if (start && end) {
+      fetchRoadRoute(start, end).then((pts) => {
+        if (isMounted && pts && pts.length > 0) {
+          setRoadWaypoints(pts);
+          setAnimatedAmbPos(pts[0]);
+        }
+      });
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userLoc, ambulanceLoc, hospitalLoc, isEnRouteToHospital]);
+
+  // 2. Smoothly progress the ambulance icon along real street waypoints
+  useEffect(() => {
+    if (!roadWaypoints || roadWaypoints.length < 2) return;
+    if (status === "ARRIVED" || status === "RESOLVED" || status === "COMPLETED") {
+      setAnimatedAmbPos(isEnRouteToHospital ? (hospitalLoc || roadWaypoints[roadWaypoints.length - 1]) : userLoc);
+      return;
+    }
+
+    let step = 0;
+    const interval = setInterval(() => {
+      step += 1;
+      if (step < roadWaypoints.length) {
+        setAnimatedAmbPos(roadWaypoints[step]);
+      } else {
+        // Reached destination for current phase
+        clearInterval(interval);
+      }
+    }, 1100);
+
+    return () => clearInterval(interval);
+  }, [roadWaypoints, status, isEnRouteToHospital, userLoc, hospitalLoc]);
+
+  const currentDisplayAmbPos = animatedAmbPos || ambulanceLoc;
+
+  let routePositions = roadWaypoints.length >= 2 ? roadWaypoints : [];
   let routeColor = "#06B6D4"; // Cyan for Phase 1 (Ambulance -> User)
   let activeDistanceKm = 0;
   let computedEtaMins = etaMinutes;
@@ -49,8 +97,11 @@ export const LiveTrackingMap = ({
 
   if (isEnRouteToHospital) {
     // PHASE 2: Destination is the HOSPITAL
-    const startPoint = ambulanceLoc || userLoc;
-    if (startPoint && hospitalLoc) {
+    const startPoint = currentDisplayAmbPos || userLoc;
+    if (roadWaypoints.length >= 2) {
+      activeDistanceKm = calculateRouteDistanceKm(roadWaypoints);
+      computedEtaMins = Math.max(1, Math.round((activeDistanceKm / 42) * 60));
+    } else if (startPoint && hospitalLoc) {
       routePositions = [startPoint, hospitalLoc];
       activeDistanceKm = calcHaversineKm(startPoint[0], startPoint[1], hospitalLoc[0], hospitalLoc[1]);
       computedEtaMins = Math.max(1, Math.round((activeDistanceKm / 40) * 60));
@@ -59,24 +110,27 @@ export const LiveTrackingMap = ({
 
     if (status === "ARRIVED") {
       statusTitle = "🚑 PARAMEDIC ARRIVED AT SCENE";
-      statusSub = `Awaiting arrival OTP. Next destination: ${hospitalName} (${activeDistanceKm} km)`;
+      statusSub = `Awaiting arrival OTP. Next destination: ${hospitalName} (${activeDistanceKm} km via road)`;
     } else if (status === "RESOLVED" || status === "COMPLETED") {
       statusTitle = "✅ PATIENT SAFELY ADMITTED";
       statusSub = `Trip completed at ${hospitalName}`;
     } else {
       statusTitle = `🏥 EN ROUTE TO ${hospitalName.toUpperCase()}`;
-      statusSub = `Distance: ${activeDistanceKm} km • Est. Transit: ${computedEtaMins} mins`;
+      statusSub = `Road Distance: ${activeDistanceKm} km • Est. Transit: ${computedEtaMins} mins`;
     }
   } else {
     // PHASE 1: Destination is the USER (Accident Scene)
-    if (ambulanceLoc && userLoc) {
-      routePositions = [ambulanceLoc, userLoc];
-      activeDistanceKm = calcHaversineKm(ambulanceLoc[0], ambulanceLoc[1], userLoc[0], userLoc[1]);
+    if (roadWaypoints.length >= 2) {
+      activeDistanceKm = calculateRouteDistanceKm(roadWaypoints);
+      computedEtaMins = Math.max(1, Math.round((activeDistanceKm / 45) * 60));
+    } else if (currentDisplayAmbPos && userLoc) {
+      routePositions = [currentDisplayAmbPos, userLoc];
+      activeDistanceKm = calcHaversineKm(currentDisplayAmbPos[0], currentDisplayAmbPos[1], userLoc[0], userLoc[1]);
       computedEtaMins = Math.max(1, Math.round((activeDistanceKm / 40) * 60));
     }
     routeColor = "#06B6D4";
     statusTitle = `🚑 ${plateNumber} DISPATCHED TO YOUR LOCATION`;
-    statusSub = `Live Distance: ${activeDistanceKm} km • Est. Arrival: ${computedEtaMins} mins`;
+    statusSub = `Road Distance: ${activeDistanceKm} km • Est. Arrival: ${computedEtaMins} mins`;
   }
 
   // Calculate bounding box for smooth map fitting
@@ -123,7 +177,7 @@ export const LiveTrackingMap = ({
       <MapContainer
         center={userLoc || [17.385, 78.4867]}
         zoom={14}
-        bounds={allMapPoints.length > 1 ? allMapPoints : null}
+        bounds={roadWaypoints.length > 1 ? roadWaypoints : (allMapPoints.length > 1 ? allMapPoints : null)}
       >
         {/* 1. Accident Scene Marker */}
         {userLoc && (
@@ -134,9 +188,9 @@ export const LiveTrackingMap = ({
         )}
 
         {/* 2. Ambulance Marker */}
-        {ambulanceLoc && (
+        {currentDisplayAmbPos && (
           <AmbulanceMarker
-            position={ambulanceLoc}
+            position={currentDisplayAmbPos}
             plateNumber={plateNumber}
             eta={isEnRouteToHospital ? `To ER: ${computedEtaMins}m` : `ETA: ${computedEtaMins}m`}
           />

@@ -20,6 +20,7 @@ import HospitalMarker from "../../components/maps/HospitalMarker";
 import AmbulanceMarker from "../../components/maps/AmbulanceMarker";
 import UserMarker from "../../components/maps/UserMarker";
 import RoutePolyline from "../../components/maps/RoutePolyline";
+import { fetchRoadRoute, calculateRouteDistanceKm } from "../../utils/roadRouting";
 import HospitalLocationModal from "../../components/hospital/HospitalLocationModal";
 import { playPrettyChime, playEmergencyAlertSiren } from "../../utils/notificationSound";
 import {
@@ -304,6 +305,46 @@ export const HospitalDashboard = () => {
         ]
       : null;
 
+  const [inboundRoadRoute, setInboundRoadRoute] = useState([]);
+  const [animatedAmbulancePos, setAnimatedAmbulancePos] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (hasIncident && incidentCoords && hospitalCoords) {
+      fetchRoadRoute(incidentCoords, hospitalCoords).then((pts) => {
+        if (isMounted && pts && pts.length > 0) {
+          setInboundRoadRoute(pts);
+          const midIdx = Math.floor(pts.length / 2);
+          setAnimatedAmbulancePos(pts[midIdx]);
+        }
+      });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [hasIncident, incidentCoords?.[0], incidentCoords?.[1], hospitalCoords[0], hospitalCoords[1]]);
+
+  // Smoothly progress inbound ambulance along the road to the hospital
+  useEffect(() => {
+    if (!inboundRoadRoute || inboundRoadRoute.length < 2) return;
+    const midIdx = Math.floor(inboundRoadRoute.length / 2);
+    let step = midIdx;
+
+    const timer = setInterval(() => {
+      step += 1;
+      if (step < inboundRoadRoute.length) {
+        setAnimatedAmbulancePos(inboundRoadRoute[step]);
+      } else {
+        step = midIdx;
+        setAnimatedAmbulancePos(inboundRoadRoute[midIdx]);
+      }
+    }, 1200);
+
+    return () => clearInterval(timer);
+  }, [inboundRoadRoute]);
+
+  const currentAmbulanceDisplayPos = animatedAmbulancePos || ambulanceCoords;
+
   return (
     <div className="space-y-6">
       {/* 0. HOSPITAL FACILITY LOCATION STATUS BAR */}
@@ -549,20 +590,27 @@ export const HospitalDashboard = () => {
                 );
               })}
 
-              {hasIncident && ambulanceCoords && (
+              {hasIncident && currentAmbulanceDisplayPos && (
                 <AmbulanceMarker
-                  position={ambulanceCoords}
+                  position={currentAmbulanceDisplayPos}
                   plateNumber="INBOUND AMBULANCE"
                   speed={52}
                   eta="6 mins"
                 />
               )}
 
-              {hasIncident && incidentCoords && ambulanceCoords && (
+              {hasIncident && incidentCoords && (
                 <RoutePolyline
-                  positions={[incidentCoords, ambulanceCoords, hospitalCoords]}
+                  positions={
+                    inboundRoadRoute.length > 1
+                      ? inboundRoadRoute
+                      : ambulanceCoords
+                      ? [incidentCoords, ambulanceCoords, hospitalCoords]
+                      : [incidentCoords, hospitalCoords]
+                  }
                   color="#EF4444"
-                  dashArray="6, 6"
+                  weight={5}
+                  opacity={0.9}
                 />
               )}
             </MapContainer>

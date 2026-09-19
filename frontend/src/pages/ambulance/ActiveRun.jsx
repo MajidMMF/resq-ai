@@ -13,6 +13,7 @@ import AmbulanceMarker from "../../components/maps/AmbulanceMarker";
 import UserMarker from "../../components/maps/UserMarker";
 import HospitalMarker from "../../components/maps/HospitalMarker";
 import RoutePolyline from "../../components/maps/RoutePolyline";
+import { fetchRoadRoute } from "../../utils/roadRouting";
 import ArrivalOtpModal from "../../components/shared/ArrivalOtpModal";
 import StatusBadge from "../../components/shared/StatusBadge";
 import PriorityBadge from "../../components/shared/PriorityBadge";
@@ -100,7 +101,23 @@ export const ActiveRun = () => {
   // Map route points depending on assignment state
   const isEnRouteHospital = assignment?.status === "OTP_VERIFIED" || (assignment?.status === "EN_ROUTE" && assignment?.arrivedAt);
   const targetDestination = isEnRouteHospital ? hospitalPos : scenePos;
-  const routePoints = [driverPos, targetDestination];
+  const [roadRoute, setRoadRoute] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (driverPos && targetDestination) {
+      fetchRoadRoute(driverPos, targetDestination).then((pts) => {
+        if (isMounted && pts && pts.length > 0) {
+          setRoadRoute(pts);
+        }
+      });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [driverPos[0], driverPos[1], targetDestination[0], targetDestination[1]]);
+
+  const routePoints = roadRoute.length > 1 ? roadRoute : [driverPos, targetDestination];
 
   // Action handlers
   const handleStartTrip = async () => {
@@ -223,7 +240,7 @@ export const ActiveRun = () => {
           <MapContainer
             center={driverPos}
             zoom={14}
-            bounds={[driverPos, targetDestination]}
+            bounds={routePoints.length > 1 ? routePoints : [driverPos, targetDestination]}
             className="w-full h-full"
           >
             <AmbulanceMarker position={driverPos} plateNumber="YOUR AMBULANCE" speed={45} />

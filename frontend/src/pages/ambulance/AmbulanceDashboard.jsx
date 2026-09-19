@@ -16,6 +16,7 @@ import AmbulanceMarker from "../../components/maps/AmbulanceMarker";
 import HospitalMarker from "../../components/maps/HospitalMarker";
 import UserMarker from "../../components/maps/UserMarker";
 import RoutePolyline from "../../components/maps/RoutePolyline";
+import { fetchRoadRoute, calculateRouteDistanceKm } from "../../utils/roadRouting";
 import useSocket from "../../hooks/useSocket";
 import { playPrettyChime, playEmergencyAlertSiren } from "../../utils/notificationSound";
 import {
@@ -186,7 +187,25 @@ export const AmbulanceDashboard = () => {
     ? [activeCallout.location.coordinates[1], activeCallout.location.coordinates[0]]
     : null;
 
-  const distanceKm = incidentCoords
+  const [radarRoadRoute, setRadarRoadRoute] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (driverPos && incidentCoords) {
+      fetchRoadRoute(driverPos, incidentCoords).then((pts) => {
+        if (isMounted && pts && pts.length > 0) {
+          setRadarRoadRoute(pts);
+        }
+      });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [driverPos[0], driverPos[1], incidentCoords?.[0], incidentCoords?.[1]]);
+
+  const distanceKm = radarRoadRoute.length > 1
+    ? calculateRouteDistanceKm(radarRoadRoute)
+    : incidentCoords
     ? calculateDistanceKm(driverPos[0], driverPos[1], incidentCoords[0], incidentCoords[1])
     : "2.4";
 
@@ -339,9 +358,10 @@ export const AmbulanceDashboard = () => {
           {/* 4. Active Navigation Route Polyline */}
           {incidentCoords && (
             <RoutePolyline
-              positions={[driverPos, incidentCoords]}
+              positions={radarRoadRoute.length > 1 ? radarRoadRoute : [driverPos, incidentCoords]}
               color="#EF4444"
-              dashArray="6, 6"
+              weight={5}
+              opacity={0.9}
             />
           )}
         </MapContainer>
